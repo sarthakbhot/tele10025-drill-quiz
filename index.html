@@ -787,6 +787,10 @@ var summaryScope = null; // scope captured when the summary was opened
 var summaryWeakest = null; // topic the "Practice weakest topic" button targets
 var yourAnswerText = '', correctAnswerText = '';
 var resetArmed = false;
+var QUICK_N = 25;       // module drills: questions per Quick Check session
+var quickCheck = false; // true while a single-module Quick Check is running
+var sessionTarget = 0;  // first-attempt answers that end a Quick Check
+var drillMods = null;   // modules the current module drill was started with
 /* per-question interaction state */
 var multiSel = {};      // multi: original option index -> true
 var matchMap = {};      // match: left pair index -> right pair index
@@ -916,7 +920,7 @@ function buildPicks() {
   var total = 0;
   BANK.modules.forEach(function (mod) {
     total += mod.questions.length;
-    choices.push({ label: mod.name, meta: mod.questions.length + ' questions', mods: [mod] });
+    choices.push({ label: mod.name, meta: 'Quick Check · 25 questions', mods: [mod] });
   });
   choices.push({ label: 'All modules', meta: total + ' questions, mixed', mods: BANK.modules });
   var saved = Object.keys(MISTAKES).length;
@@ -979,6 +983,7 @@ function resetSession() {
   retryQueue = []; roundMissed = []; lastRoundMissed = [];
   sessionResults = {}; sessionOrder = [];
   topicCounted = {};
+  quickCheck = false; sessionTarget = 0;
   $('roundNote').className = 'round-note';
   $('roundRetryBtn').className = 'round-retry';
   touchPlayed();
@@ -992,16 +997,68 @@ function showQuiz() {
   updateHud();
 }
 
+/* Stratified sample: n questions drawn from items roughly in proportion to
+   each topic's share of the module, so every topic is covered (at least one
+   question each when n allows). Shuffled within topics and overall, so a
+   fresh sample draws different questions each time. */
+function stratifiedSample(items, n) {
+  if (items.length <= n) return shuffle(items);
+  var byTopic = {};
+  items.forEach(function (it) {
+    var t = it.q.topic || 'Untagged';
+    if (!byTopic[t]) byTopic[t] = [];
+    byTopic[t].push(it);
+  });
+  var topics = Object.keys(byTopic);
+  topics.forEach(function (t) { byTopic[t] = shuffle(byTopic[t]); });
+  // Proportional allocation (largest remainder).
+  var alloc = {}, assigned = 0;
+  var parts = topics.map(function (t) {
+    var exact = n * byTopic[t].length / items.length;
+    var base = Math.floor(exact);
+    alloc[t] = base;
+    assigned += base;
+    return { topic: t, frac: exact - base };
+  });
+  parts.sort(function (a, b) { return b.frac - a.frac; });
+  var i = 0;
+  while (assigned < n) { alloc[parts[i % parts.length].topic]++; assigned++; i++; }
+  // Guarantee every topic appears when there are enough slots: take one
+  // from the largest allocation for any topic that got none.
+  if (n >= topics.length) {
+    topics.forEach(function (t) {
+      if (alloc[t] === 0) {
+        var donor = null, max = 1;
+        topics.forEach(function (u) { if (alloc[u] > max) { max = alloc[u]; donor = u; } });
+        if (donor) { alloc[donor]--; alloc[t] = 1; }
+      }
+    });
+  }
+  var out = [];
+  topics.forEach(function (t) { out = out.concat(byTopic[t].slice(0, alloc[t])); });
+  return shuffle(out);
+}
+
 function startQuiz(mods) {
   mode = 'drill';
+  drillMods = mods;
   currentScope = mods.map(function (mod) { return mod.module; });
-  pool = [];
+  var all = [];
   mods.forEach(function (mod) {
     mod.questions.forEach(function (q) {
-      pool.push({ q: q, moduleName: mod.name });
+      all.push({ q: q, moduleName: mod.name });
     });
   });
   resetSession();
+  if (mods.length === 1) {
+    // Quick Check: a 25-question stratified sample of the module, then the
+    // session summary — not the full bank.
+    pool = stratifiedSample(all, QUICK_N);
+    quickCheck = true;
+    sessionTarget = pool.length;
+  } else {
+    pool = all;
+  }
   newPass();
   showQuiz();
   nextQuestion();
@@ -1072,18 +1129,31 @@ function newPass() {
 /* ---------- quiz flow ---------- */
 function nextQuestion() {
   if (mode === 'exam') { nextExamQuestion(); return; }
+  // Quick Check: the 25th sampled question has been answered — go straight
+  // to the session summary instead of serving another question.
+  if (mode === 'drill' && quickCheck && sessionTarget > 0 && sessionOrder.length >= sessionTarget) {
+    endSession();
+    return;
+  }
   var item = null;
   var fromDeck = false;
-  // A missed question comes back after ~5 intervening questions.
-  for (var i = 0; i < retryQueue.length; i++) {
-    if (retryQueue[i].due <= questionNumber) {
-      item = retryQueue.splice(i, 1)[0].item;
-      break;
+  // Quick Check serves its 25 sampled questions straight through, so the
+  // session always ends right after the 25th — missed questions are saved
+  // to Smart Review rather than re-asked mid-session (the endless modes
+  // below keep the re-ask behaviour).
+  var serveRetries = !(mode === 'drill' && quickCheck);
+  if (serveRetries) {
+    // A missed question comes back after ~5 intervening questions.
+    for (var i = 0; i < retryQueue.length; i++) {
+      if (retryQueue[i].due <= questionNumber) {
+        item = retryQueue.splice(i, 1)[0].item;
+        break;
+      }
     }
-  }
-  if (!item && deck.length === 0 && retryQueue.length) {
-    // Pass is done but retries are still pending — serve the oldest one now.
-    item = retryQueue.shift().item;
+    if (!item && deck.length === 0 && retryQueue.length) {
+      // Pass is done but retries are still pending — serve the oldest one now.
+      item = retryQueue.shift().item;
+    }
   }
   if (!item) {
     if (deck.length === 0) finishPass();
@@ -1269,6 +1339,10 @@ function showFeedback(isRight, extraNodes) {
   $('checkBtn').className = 'checkbtn';
   hideHint();
   $('nextBtn').className = 'nextbtn on';
+  // Quick Check: that was the last sampled question — Next leads to the summary.
+  if (mode === 'drill' && quickCheck && sessionTarget > 0 && sessionOrder.length >= sessionTarget) {
+    $('nextBtn').textContent = 'See summary →';
+  }
 }
 
 function correctLine(label, valueText) {
@@ -2056,7 +2130,11 @@ $('checkBtn').addEventListener('click', function () {
   else if (current.q.type === 'match') checkMatch();
 });
 $('nextBtn').addEventListener('click', nextQuestion);
-$('restartBtn').addEventListener('click', goToStart);
+$('restartBtn').addEventListener('click', function () {
+  // Quick Check: New round = a fresh 25-question sample of the same module.
+  if (mode === 'drill' && quickCheck && drillMods) startQuiz(drillMods);
+  else goToStart();
+});
 $('endBtn').addEventListener('click', endSession);
 $('sumBackBtn').addEventListener('click', goToStart);
 $('practiceWeakestBtn').addEventListener('click', function () {
