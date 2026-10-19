@@ -140,6 +140,99 @@
   .pick:active { border-color: var(--accent); background: var(--accent-soft); }
   .pick .pick-title { font-size: 1.15rem; font-weight: 700; display: block; }
   .pick .pick-meta { color: var(--ink-soft); font-size: .92rem; display: block; margin-top: 2px; }
+
+  /* ---------- Practice by Topic ---------- */
+  .topic-sec { margin-top: 30px; }
+  .topic-sec h2 { font-size: 1.3rem; margin: 0 0 4px; }
+  .topic-sec .topic-sub { color: var(--ink-soft); font-size: .95rem; margin: 0 0 6px; }
+  .topic-mod {
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 18px 0 8px;
+  }
+  .topic-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    text-align: left;
+    background: var(--surface);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 13px 16px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .topic-row .box {
+    flex: none;
+    position: relative;
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--ink-soft);
+    border-radius: 6px;
+    margin-right: 12px;
+    background: var(--surface);
+  }
+  .topic-row .box::after {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .85rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .topic-row.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .topic-row.selected .box { background: var(--accent); border-color: var(--accent); }
+  .topic-row.selected .box::after { content: "✓"; color: var(--accent-ink); }
+  .topic-row .t-name { font-weight: 650; display: block; line-height: 1.3; }
+  .topic-row .t-meta {
+    color: var(--ink-soft);
+    font-size: .88rem;
+    display: block;
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .topic-go {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 56px;
+  }
+  .topic-go:disabled { opacity: .45; cursor: default; }
+  .topic-go:active:not(:disabled) { filter: brightness(1.12); }
+  .topic-weak {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    background: none;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    border-radius: 12px;
+    padding: 14px;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 52px;
+  }
+  .topic-weak:active { background: var(--accent-soft); }
   .start .note {
     margin-top: 22px;
     color: var(--ink-soft);
@@ -643,6 +736,9 @@ var examIndex = 0;      // exam: position within EXAM_ORDER
 var examMissed = [];    // exam: {item, yourText, correctText}
 var sessionResults = {}; // drill modes: question id -> {item, topic, correct, yourText, correctText} (first attempt only)
 var sessionOrder = [];   // drill modes: question ids in first-attempt order
+var topicCounted = {};   // question ids already counted toward topic stats this session (first attempt only)
+var topicSel = {};       // start screen: "M{module}|{topic}" -> true for topics picked for practice
+var topicGoEl = null;    // the "Practice selected topics" button, rebuilt with the start screen
 var currentScope = null; // drill modes: module numbers in scope, or null = all modules
 var summaryScope = null; // scope captured when the summary was opened
 var summaryWeakest = null; // topic the "Practice weakest topic" button targets
@@ -710,12 +806,45 @@ function recordMistake(id, isRight) {
   }
 }
 
+/* ---------- per-topic stats (localStorage) ---------- */
+var TOPIC_KEY = 'tele10025-topic-stats';
+var TOPIC_STATS = loadTopicStats();
+
+function loadTopicStats() {
+  try {
+    var raw = localStorage.getItem(TOPIC_KEY);
+    var parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch (e) { return {}; }
+}
+function saveTopicStats() {
+  try { localStorage.setItem(TOPIC_KEY, JSON.stringify(TOPIC_STATS)); } catch (e) {}
+}
+/* Topic stats key: "M{module}|{topic}". Exam questions carry no topic of their
+   own, but their ids are bank ids, so the bank entry supplies topic + module. */
+function recordTopicStat(q, isRight) {
+  if (!q || !q.id) return;
+  var info = BY_ID[q.id];
+  var topic = q.topic || (info ? info.q.topic : null);
+  var modNum = info ? info.module : null;
+  if (!topic || !modNum) return;
+  var key = 'M' + modNum + '|' + topic;
+  var s = TOPIC_STATS[key];
+  if (!s || typeof s.correct !== 'number' || typeof s.attempted !== 'number') {
+    s = { correct: 0, attempted: 0 };
+  }
+  s.attempted++;
+  if (isRight) s.correct++;
+  TOPIC_STATS[key] = s;
+  saveTopicStats();
+}
+
 /* Stable ids for every bank question: m{module}q{index in that module} */
 var BY_ID = {};
 BANK.modules.forEach(function (mod) {
   mod.questions.forEach(function (q, i) {
     q.id = 'm' + mod.module + 'q' + i;
-    BY_ID[q.id] = { q: q, moduleName: mod.name };
+    BY_ID[q.id] = { q: q, moduleName: mod.name, module: mod.module };
   });
 });
 EXAM.forEach(function (e) { e.q.id = e.id; });
@@ -752,12 +881,16 @@ function buildPicks() {
     meta: saved ? saved + ' saved ' + (saved === 1 ? 'mistake' : 'mistakes') + ' — worst first' : 'No mistakes saved yet',
     action: 'smart'
   });
-  choices.push({
+  choices.forEach(addPick);
+  buildTopicSection(picks);
+  // Final Exam stays last, below Practice by Topic.
+  addPick({
     label: 'Final Exam',
     meta: EXAM_ORDER.length + ' questions · true/false, multiple choice, fill-in-the-blank · one pass',
     action: 'exam'
   });
-  choices.forEach(function (c) {
+
+  function addPick(c) {
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'pick';
@@ -776,7 +909,7 @@ function buildPicks() {
       else startQuiz(c.mods);
     });
     picks.appendChild(b);
-  });
+  }
 }
 
 function showStartMsg(text) {
@@ -801,6 +934,7 @@ function resetSession() {
   questionNumber = 0; round = 1; lastQ = null;
   retryQueue = []; roundMissed = []; lastRoundMissed = [];
   sessionResults = {}; sessionOrder = [];
+  topicCounted = {};
   $('roundNote').className = 'round-note';
   $('roundRetryBtn').className = 'round-retry';
   touchPlayed();
@@ -1037,6 +1171,12 @@ function recordResult(isRight) {
       // Re-ask this one after ~5 intervening questions.
       retryQueue.push({ item: current, due: questionNumber + 5 });
     }
+  }
+  // Per-topic stats (every mode, exam included): first attempt per question
+  // per session counts — a re-asked question doesn't double-count.
+  if (current.q.id && !topicCounted[current.q.id]) {
+    topicCounted[current.q.id] = true;
+    recordTopicStat(current.q, isRight);
   }
   // Session summary (drill modes only): first attempt per question counts.
   if (mode !== 'exam' && current.q.id && !sessionResults[current.q.id]) {
@@ -1608,6 +1748,154 @@ function startTopicPractice(topic, scope) {
   nextQuestion();
 }
 
+/* ---------- Practice by Topic (start screen) ---------- */
+/* Topics grouped by module, exact string match, alphabetical within a module. */
+function topicGroups() {
+  var groups = [];
+  BANK.modules.forEach(function (mod) {
+    var counts = {};
+    mod.questions.forEach(function (q) { counts[q.topic] = (counts[q.topic] || 0) + 1; });
+    var topics = Object.keys(counts).sort().map(function (t) {
+      return { topic: t, count: counts[t] };
+    });
+    groups.push({ module: mod.module, name: mod.name, topics: topics });
+  });
+  return groups;
+}
+
+function selectedTopicKeys() {
+  return Object.keys(topicSel).filter(function (k) { return topicSel[k]; });
+}
+
+function updateTopicGo() {
+  if (topicGoEl) topicGoEl.disabled = selectedTopicKeys().length === 0;
+}
+
+function buildTopicSection(container) {
+  var sec = document.createElement('div');
+  sec.className = 'topic-sec';
+  var h = document.createElement('h2');
+  h.textContent = 'Practice by Topic';
+  sec.appendChild(h);
+  var sub = document.createElement('p');
+  sub.className = 'topic-sub';
+  sub.textContent = 'Tap the topics you want, then drill just those questions.';
+  sec.appendChild(sub);
+
+  topicGroups().forEach(function (g) {
+    var mh = document.createElement('div');
+    mh.className = 'topic-mod';
+    mh.textContent = g.name;
+    sec.appendChild(mh);
+    g.topics.forEach(function (t) { sec.appendChild(topicRow(g, t)); });
+  });
+
+  var go = document.createElement('button');
+  go.type = 'button';
+  go.className = 'topic-go';
+  go.textContent = 'Practice selected topics';
+  go.addEventListener('click', function () {
+    var keys = selectedTopicKeys();
+    if (keys.length) startTopicsPractice(keys);
+  });
+  sec.appendChild(go);
+  topicGoEl = go;
+  updateTopicGo();
+
+  var weak = document.createElement('button');
+  weak.type = 'button';
+  weak.className = 'topic-weak';
+  weak.textContent = 'Practice my weakest';
+  weak.addEventListener('click', startWeakestPractice);
+  sec.appendChild(weak);
+
+  container.appendChild(sec);
+}
+
+function topicRow(g, t) {
+  var key = 'M' + g.module + '|' + t.topic;
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'topic-row' + (topicSel[key] ? ' selected' : '');
+  b.setAttribute('aria-pressed', topicSel[key] ? 'true' : 'false');
+  var box = document.createElement('span');
+  box.className = 'box';
+  b.appendChild(box);
+  var wrap = document.createElement('span');
+  var nm = document.createElement('span');
+  nm.className = 't-name';
+  nm.textContent = t.topic;
+  wrap.appendChild(nm);
+  var meta = document.createElement('span');
+  meta.className = 't-meta';
+  var s = TOPIC_STATS[key];
+  if (s && s.attempted > 0) {
+    var pct = Math.round((s.correct / s.attempted) * 100);
+    meta.textContent = t.count + ' questions · ' + pct + '% so far (' + s.correct + '/' + s.attempted + ')';
+  } else {
+    meta.textContent = t.count + ' questions · not tried yet';
+  }
+  wrap.appendChild(meta);
+  b.appendChild(wrap);
+  b.addEventListener('click', function () {
+    hideStartMsg();
+    disarmReset();
+    if (topicSel[key]) delete topicSel[key];
+    else topicSel[key] = true;
+    b.classList.toggle('selected', !!topicSel[key]);
+    b.setAttribute('aria-pressed', topicSel[key] ? 'true' : 'false');
+    updateTopicGo();
+  });
+  return b;
+}
+
+/* Endless drill drawn only from the given "M{module}|{topic}" keys. */
+function startTopicsPractice(keys) {
+  var wanted = {};
+  keys.forEach(function (k) { wanted[k] = true; });
+  var items = [];
+  var modsSeen = {};
+  BANK.modules.forEach(function (mod) {
+    mod.questions.forEach(function (q) {
+      if (wanted['M' + mod.module + '|' + q.topic]) {
+        items.push({ q: q, moduleName: mod.name });
+        modsSeen[mod.module] = true;
+      }
+    });
+  });
+  if (!items.length) return;
+  mode = 'topic';
+  currentScope = Object.keys(modsSeen).map(function (k) { return parseInt(k, 10); });
+  pool = items;
+  resetSession();
+  newPass();
+  showQuiz();
+  nextQuestion();
+}
+
+/* Up to 3 lowest-accuracy topics with at least 3 attempts each; starts at once. */
+function startWeakestPractice() {
+  hideStartMsg();
+  disarmReset();
+  var cands = [];
+  Object.keys(TOPIC_STATS).forEach(function (key) {
+    var s = TOPIC_STATS[key];
+    if (s && s.attempted >= 3) {
+      cands.push({ key: key, pct: s.correct / s.attempted, attempted: s.attempted });
+    }
+  });
+  if (!cands.length) {
+    showStartMsg('No topic has 3 answers yet — drill a module first, then your weakest topics will show up here.');
+    return;
+  }
+  // Lowest accuracy first; ties go to the topic with more attempts.
+  cands.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
+  var keys = cands.slice(0, 3).map(function (c) { return c.key; });
+  topicSel = {};
+  keys.forEach(function (k) { topicSel[k] = true; });
+  startTopicsPractice(keys);
+}
+
 function goToStart() {
   $('quizScreen').hidden = true;
   $('resultsScreen').hidden = true;
@@ -1652,18 +1940,21 @@ $('resetBtn').addEventListener('click', function () {
   if (!resetArmed) {
     resetArmed = true;
     var btn = $('resetBtn');
-    btn.textContent = 'Tap again to confirm — this clears your saved mistakes';
+    btn.textContent = 'Tap again to confirm — this clears your saved mistakes and topic stats';
     btn.className = 'resetbtn armed';
     return;
   }
   disarmReset();
   MISTAKES = {};
+  TOPIC_STATS = {};
+  topicSel = {};
   try { localStorage.removeItem(MISTAKE_KEY); } catch (e) {}
+  try { localStorage.removeItem(TOPIC_KEY); } catch (e) {}
   var meta = loadMeta();
   meta.lastResetAt = new Date().toISOString();
   saveMeta(meta);
   buildPicks();
-  showStartMsg('Progress cleared — your mistake pool is empty.');
+  showStartMsg('Progress cleared — your mistake pool and topic stats are empty.');
 });
 
 document.addEventListener('keydown', function (e) {
