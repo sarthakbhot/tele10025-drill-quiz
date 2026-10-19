@@ -162,6 +162,11 @@
     color: var(--accent);
   }
   .qmeta .qnum { font-size: .85rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .qtopic {
+    font-size: .88rem;
+    color: var(--ink-soft);
+    margin: -6px 0 10px;
+  }
   .qcard {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -314,6 +319,7 @@
   .feedback .correct-line { display: block; margin-bottom: 3px; }
   .feedback .correct-line b { font-weight: 700; }
   .feedback .sub-line { display: block; margin-bottom: 2px; }
+  .feedback .topic-line { display: block; font-size: .88rem; color: var(--ink-soft); margin-bottom: 4px; }
 
   .nextbtn, .checkbtn {
     display: none;
@@ -423,6 +429,7 @@
     display: block;
     margin-bottom: 6px;
   }
+  .review-item .rtopic { display: block; font-size: .85rem; color: var(--ink-soft); margin-bottom: 6px; }
   .review-item .rq { font-weight: 650; font-size: 1.05rem; margin: 0 0 10px; }
   .review-item .rline { display: block; margin-bottom: 4px; font-size: .98rem; }
   .review-item .rline b { font-weight: 700; }
@@ -558,6 +565,7 @@
       <span class="mod" id="qModule"></span>
       <span class="qnum" id="qNum"></span>
     </div>
+    <div class="qtopic" id="qTopic"></div>
     <div class="qcard">
       <p class="qtext" id="qText"></p>
       <div class="opts" id="opts"></div>
@@ -959,6 +967,8 @@ function renderQuestion() {
     $('qModule').textContent = item.moduleName;
     $('qNum').textContent = 'Question ' + questionNumber + (round > 1 ? ' · Round ' + round : '');
   }
+  $('qTopic').textContent = q.topic ? 'Topic: ' + q.topic : '';
+  $('qTopic').style.display = q.topic ? '' : 'none';
   $('progressFill').style.width = (passTotal ? (passPos / passTotal) * 100 : 0) + '%';
 
   // Question text: fill-in-the-blank gets styled blank spans.
@@ -1054,6 +1064,12 @@ function showFeedback(isRight, extraNodes) {
   verdict.className = 'verdict';
   verdict.textContent = isRight ? 'Correct' : 'Not quite';
   fb.appendChild(verdict);
+  if (q.topic) {
+    var tl = document.createElement('span');
+    tl.className = 'topic-line';
+    tl.textContent = 'Topic: ' + q.topic;
+    fb.appendChild(tl);
+  }
   (extraNodes || []).forEach(function (n) { fb.appendChild(n); });
   var ex = document.createElement('span');
   ex.textContent = q.explain;
@@ -1376,6 +1392,12 @@ function reviewItem(m) {
   mod.className = 'rmod';
   mod.textContent = m.item.section + ' · ' + m.item.moduleName;
   box.appendChild(mod);
+  if (q.topic) {
+    var rt = document.createElement('span');
+    rt.className = 'rtopic';
+    rt.textContent = 'Topic: ' + q.topic;
+    box.appendChild(rt);
+  }
   var rq = document.createElement('p');
   rq.className = 'rq';
   rq.textContent = q.q;
@@ -1442,8 +1464,14 @@ function summaryReviewItem(r) {
   box.className = 'review-item';
   var mod = document.createElement('span');
   mod.className = 'rmod';
-  mod.textContent = r.item.moduleName + ' · ' + r.topic;
+  mod.textContent = r.item.moduleName;
   box.appendChild(mod);
+  if (r.topic) {
+    var rt2 = document.createElement('span');
+    rt2.className = 'rtopic';
+    rt2.textContent = 'Topic: ' + r.topic;
+    box.appendChild(rt2);
+  }
   var rq = document.createElement('p');
   rq.className = 'rq';
   rq.textContent = q.q;
