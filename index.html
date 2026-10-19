@@ -153,6 +153,35 @@
   .pick .pick-title { font-size: 1.15rem; font-weight: 700; display: block; }
   .pick .pick-meta { color: var(--ink-soft); font-size: .92rem; display: block; margin-top: 2px; }
 
+  /* ---------- Your Stats ---------- */
+  .stats-sec { margin-bottom: 30px; }
+  .stats-sec h2 { font-size: 1.3rem; margin: 0 0 10px; }
+  .stats-card {
+    background: var(--surface);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 13px 16px;
+    margin-bottom: 8px;
+    box-shadow: var(--shadow);
+  }
+  .stats-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .stats-name { font-weight: 700; line-height: 1.3; }
+  .stats-acc {
+    font-weight: 800;
+    font-size: 1.15rem;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .stats-acc.none { color: var(--ink-soft); font-weight: 600; font-size: .92rem; }
+  .stats-line { color: var(--ink-soft); font-size: .92rem; margin-top: 3px; }
+  .stats-line b { color: var(--ink); font-weight: 650; }
+
   /* ---------- Practice by Topic ---------- */
   .topic-sec { margin-top: 30px; }
   .topic-sec h2 { font-size: 1.3rem; margin: 0 0 4px; }
@@ -882,6 +911,7 @@ EXAM_SECTIONS.forEach(function (s) {
 function buildPicks() {
   var picks = $('picks');
   picks.innerHTML = '';
+  buildStatsSection(picks);
   var choices = [];
   var total = 0;
   BANK.modules.forEach(function (mod) {
@@ -1769,6 +1799,78 @@ function startTopicPractice(topic, scope) {
   newPass();
   showQuiz();
   nextQuestion();
+}
+
+/* ---------- Your Stats (start screen) ---------- */
+/* One compact card per module, computed from TOPIC_STATS over every topic
+   in the bank. Rebuilt with the start screen, so the numbers are fresh. */
+function buildStatsSection(container) {
+  var sec = document.createElement('div');
+  sec.className = 'stats-sec';
+  var h = document.createElement('h2');
+  h.textContent = 'Your Stats';
+  sec.appendChild(h);
+
+  topicGroups().forEach(function (g) {
+    var totCorrect = 0, totAttempted = 0, triedCount = 0, weak = [];
+    g.topics.forEach(function (t) {
+      var s = TOPIC_STATS['M' + g.module + '|' + t.topic];
+      if (s && s.attempted > 0) {
+        triedCount++;
+        totCorrect += s.correct;
+        totAttempted += s.attempted;
+        if (s.attempted >= 3) {
+          weak.push({ topic: t.topic, pct: s.correct / s.attempted, attempted: s.attempted });
+        }
+      }
+    });
+    // Lowest accuracy first; ties go to the topic with more attempts.
+    weak.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
+
+    var card = document.createElement('div');
+    card.className = 'stats-card';
+
+    var head = document.createElement('div');
+    head.className = 'stats-head';
+    var nm = document.createElement('span');
+    nm.className = 'stats-name';
+    nm.textContent = g.name;
+    var acc = document.createElement('span');
+    if (totAttempted > 0) {
+      acc.className = 'stats-acc';
+      acc.textContent = Math.round((totCorrect / totAttempted) * 100) + '%';
+    } else {
+      acc.className = 'stats-acc none';
+      acc.textContent = 'Not tried yet';
+    }
+    head.appendChild(nm);
+    head.appendChild(acc);
+    card.appendChild(head);
+
+    var l1 = document.createElement('div');
+    l1.className = 'stats-line';
+    l1.textContent = 'Topics attempted: ' + triedCount + ' of ' + g.topics.length +
+      ' · Not tried yet: ' + (g.topics.length - triedCount);
+    card.appendChild(l1);
+
+    var l2 = document.createElement('div');
+    l2.className = 'stats-line';
+    if (weak.length) {
+      l2.appendChild(document.createTextNode('Weakest: '));
+      var wb = document.createElement('b');
+      wb.textContent = weak.slice(0, 2).map(function (w) {
+        return w.topic + ' (' + Math.round(w.pct * 100) + '%)';
+      }).join(', ');
+      l2.appendChild(wb);
+    } else {
+      l2.textContent = 'Weakest: —';
+    }
+    card.appendChild(l2);
+
+    sec.appendChild(card);
+  });
+
+  container.appendChild(sec);
 }
 
 /* ---------- Practice by Topic (start screen) ---------- */
