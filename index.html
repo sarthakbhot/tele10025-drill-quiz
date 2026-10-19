@@ -109,6 +109,18 @@
     border-radius: 99px;
     transition: width .3s ease;
   }
+  .hud-scope {
+    display: none;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-size: .92rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .hud-scope.on { display: block; }
 
   /* ---------- Start screen ---------- */
   .start { padding-top: 6vh; }
@@ -172,10 +184,10 @@
   .topic-row .box {
     flex: none;
     position: relative;
-    width: 22px;
-    height: 22px;
-    border: 2px solid var(--ink-soft);
-    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    border: 2.5px solid var(--ink-soft);
+    border-radius: 7px;
     margin-right: 12px;
     background: var(--surface);
   }
@@ -653,6 +665,7 @@
       </div>
     </div>
     <div class="progress-track on"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="hud-scope" id="hudScope"></div>
 
     <div class="qmeta">
       <span class="mod" id="qModule"></span>
@@ -739,6 +752,7 @@ var sessionOrder = [];   // drill modes: question ids in first-attempt order
 var topicCounted = {};   // question ids already counted toward topic stats this session (first attempt only)
 var topicSel = {};       // start screen: "M{module}|{topic}" -> true for topics picked for practice
 var topicGoEl = null;    // the "Practice selected topics" button, rebuilt with the start screen
+var topicScopeLabel = ''; // topic mode: "Topic practice: …" text shown in the HUD scope bar
 var currentScope = null; // drill modes: module numbers in scope, or null = all modules
 var summaryScope = null; // scope captured when the summary was opened
 var summaryWeakest = null; // topic the "Practice weakest topic" button targets
@@ -1103,6 +1117,14 @@ function renderQuestion() {
   }
   $('qTopic').textContent = q.topic ? 'Topic: ' + q.topic : '';
   $('qTopic').style.display = q.topic ? '' : 'none';
+  var scopeEl = $('hudScope');
+  if (mode === 'topic' && topicScopeLabel) {
+    scopeEl.textContent = topicScopeLabel;
+    scopeEl.className = 'hud-scope on';
+  } else {
+    scopeEl.className = 'hud-scope';
+    scopeEl.textContent = '';
+  }
   $('progressFill').style.width = (passTotal ? (passPos / passTotal) * 100 : 0) + '%';
 
   // Question text: fill-in-the-blank gets styled blank spans.
@@ -1740,6 +1762,7 @@ function startTopicPractice(topic, scope) {
   });
   if (!items.length) return;
   mode = 'topic';
+  topicScopeLabel = 'Topic practice: ' + topic;
   currentScope = scope;
   pool = items;
   resetSession();
@@ -1768,7 +1791,12 @@ function selectedTopicKeys() {
 }
 
 function updateTopicGo() {
-  if (topicGoEl) topicGoEl.disabled = selectedTopicKeys().length === 0;
+  if (!topicGoEl) return;
+  var n = selectedTopicKeys().length;
+  topicGoEl.disabled = n === 0;
+  topicGoEl.textContent = n === 0 ? 'Select topics to practice'
+    : n === 1 ? 'Practice 1 selected topic'
+    : 'Practice ' + n + ' selected topics';
 }
 
 function buildTopicSection(container) {
@@ -1779,7 +1807,7 @@ function buildTopicSection(container) {
   sec.appendChild(h);
   var sub = document.createElement('p');
   sub.className = 'topic-sub';
-  sub.textContent = 'Tap the topics you want, then drill just those questions.';
+  sub.textContent = 'Tap topics to tick them — pick one or combine several — then drill just those questions.';
   sec.appendChild(sub);
 
   topicGroups().forEach(function (g) {
@@ -1793,7 +1821,6 @@ function buildTopicSection(container) {
   var go = document.createElement('button');
   go.type = 'button';
   go.className = 'topic-go';
-  go.textContent = 'Practice selected topics';
   go.addEventListener('click', function () {
     var keys = selectedTopicKeys();
     if (keys.length) startTopicsPractice(keys);
@@ -1865,6 +1892,12 @@ function startTopicsPractice(keys) {
   });
   if (!items.length) return;
   mode = 'topic';
+  if (keys.length === 1) {
+    var onlyKey = keys[0];
+    topicScopeLabel = 'Topic practice: ' + onlyKey.slice(onlyKey.indexOf('|') + 1);
+  } else {
+    topicScopeLabel = 'Topic practice: ' + keys.length + ' topics';
+  }
   currentScope = Object.keys(modsSeen).map(function (k) { return parseInt(k, 10); });
   pool = items;
   resetSession();
