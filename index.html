@@ -298,6 +298,13 @@
     font-weight: 800;
     font-variant-numeric: tabular-nums;
   }
+  .weak-mod-h {
+    font-size: .88rem;
+    font-weight: 750;
+    color: var(--ink);
+    margin: 15px 0 7px;
+  }
+  .weak-clear { color: var(--ink-soft); font-size: .88rem; margin: 0 0 8px; }
   .side-none { color: var(--ink-soft); font-size: .92rem; margin: 0; line-height: 1.5; }
   .side-card .save-note { color: var(--ink-soft); font-size: .88rem; margin: 16px 0 0; line-height: 1.5; }
 
@@ -2264,8 +2271,9 @@ function moduleTotals(g) {
   return { correct: totCorrect, attempted: totAttempted, tried: triedCount, total: g.topics.length };
 }
 
-/* Overall accuracy, total answered, and the 3 weakest topics across ALL
-   modules — each weakest row starts a drill on that topic immediately. */
+/* Overall accuracy, total answered, and EVERY weak topic across ALL
+   modules (accuracy under 70% with at least 3 attempts), grouped under
+   its module heading — each row starts a drill on that topic immediately. */
 function buildStatsSidebar(side) {
   var card = document.createElement('div');
   card.className = 'side-card';
@@ -2305,50 +2313,69 @@ function buildStatsSidebar(side) {
   wh.textContent = 'Weakest topics';
   card.appendChild(wh);
 
-  // Same bar as elsewhere: a topic counts once it has at least 3 answers.
-  // Lowest accuracy first; ties go to the topic with more attempts.
-  var cands = [];
+  // A topic is weak once it has at least 3 answers and accuracy under 70%.
+  // Every weak topic is listed, grouped by module; within a module the
+  // lowest accuracy comes first, ties go to the topic with more attempts.
+  var byModule = {};
   Object.keys(TOPIC_STATS).forEach(function (key) {
     var s = TOPIC_STATS[key];
-    if (s && s.attempted >= 3) {
+    if (s && s.attempted >= 3 && s.correct / s.attempted < 0.7) {
       var bar = key.indexOf('|');
-      cands.push({
-        module: parseInt(key.slice(1, bar), 10),
+      var mod = parseInt(key.slice(1, bar), 10);
+      (byModule[mod] = byModule[mod] || []).push({
+        module: mod,
         topic: key.slice(bar + 1),
         pct: s.correct / s.attempted,
         attempted: s.attempted
       });
     }
   });
-  cands.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
+  Object.keys(byModule).forEach(function (m) {
+    byModule[m].sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
+  });
+  var weakMods = BANK.modules.filter(function (mod) { return byModule[mod.module]; });
 
-  if (cands.length) {
-    cands.slice(0, 3).forEach(function (w) {
-      var pct = Math.round(w.pct * 100);
-      var row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'weak-row';
-      var txt = document.createElement('span');
-      txt.className = 'weak-txt';
-      var nm = document.createElement('span');
-      nm.className = 'weak-name';
-      nm.textContent = w.topic;
-      var meta = document.createElement('span');
-      meta.className = 'weak-meta';
-      meta.textContent = 'Module ' + w.module + ' · tap to drill it';
-      txt.appendChild(nm);
-      txt.appendChild(meta);
-      row.appendChild(txt);
-      var pill = document.createElement('span');
-      pill.className = 'weak-pill';
-      pill.textContent = pct + '%';
-      row.appendChild(pill);
-      row.addEventListener('click', function () {
-        hideStartMsg();
-        disarmReset();
-        startTopicPractice(w.topic, [w.module]);
+  if (weakMods.length) {
+    BANK.modules.forEach(function (modInfo) {
+      var mh = document.createElement('div');
+      mh.className = 'weak-mod-h';
+      mh.textContent = 'Module ' + modInfo.module;
+      card.appendChild(mh);
+      var list = byModule[modInfo.module];
+      if (!list || !list.length) {
+        var clear = document.createElement('p');
+        clear.className = 'weak-clear';
+        clear.textContent = 'No weak topics';
+        card.appendChild(clear);
+        return;
+      }
+      list.forEach(function (w) {
+        var pct = Math.round(w.pct * 100);
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'weak-row';
+        var txt = document.createElement('span');
+        txt.className = 'weak-txt';
+        var nm = document.createElement('span');
+        nm.className = 'weak-name';
+        nm.textContent = w.topic;
+        var meta = document.createElement('span');
+        meta.className = 'weak-meta';
+        meta.textContent = w.attempted + ' attempts · tap to drill it';
+        txt.appendChild(nm);
+        txt.appendChild(meta);
+        row.appendChild(txt);
+        var pill = document.createElement('span');
+        pill.className = 'weak-pill';
+        pill.textContent = pct + '%';
+        row.appendChild(pill);
+        row.addEventListener('click', function () {
+          hideStartMsg();
+          disarmReset();
+          startTopicPractice(w.topic, [w.module]);
+        });
+        card.appendChild(row);
       });
-      card.appendChild(row);
     });
   } else {
     var none = document.createElement('p');
