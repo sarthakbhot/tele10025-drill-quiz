@@ -2622,24 +2622,36 @@ function startTopicsPractice(keys) {
   nextQuestion();
 }
 
-/* Up to 3 lowest-accuracy topics with at least 3 attempts each; starts at once. */
+/* One weakest topic per module: for each module, its single lowest-accuracy
+   topic with at least 3 attempts. All qualifying modules (up to 5) combine
+   into one drill; starts at once. */
 function startWeakestPractice() {
   hideStartMsg();
   disarmReset();
-  var cands = [];
+  // Group qualifying topics by module number.
+  var byModule = {};
   Object.keys(TOPIC_STATS).forEach(function (key) {
     var s = TOPIC_STATS[key];
     if (s && s.attempted >= 3) {
-      cands.push({ key: key, pct: s.correct / s.attempted, attempted: s.attempted });
+      var bar = key.indexOf('|');
+      var mod = parseInt(key.slice(1, bar), 10);
+      if (!byModule[mod]) byModule[mod] = [];
+      byModule[mod].push({ key: key, pct: s.correct / s.attempted, attempted: s.attempted });
     }
   });
-  if (!cands.length) {
+  // Per module: lowest accuracy wins; ties go to the topic with more attempts.
+  var keys = [];
+  Object.keys(byModule).map(function (k) { return parseInt(k, 10); })
+    .sort(function (a, b) { return a - b; })
+    .forEach(function (mod) {
+      var cands = byModule[mod];
+      cands.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
+      keys.push(cands[0].key);
+    });
+  if (!keys.length) {
     showStartMsg('No topic has 3 answers yet — drill a module first, then your weakest topics will show up here.');
     return;
   }
-  // Lowest accuracy first; ties go to the topic with more attempts.
-  cands.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
-  var keys = cands.slice(0, 3).map(function (c) { return c.key; });
   topicSel = {};
   keys.forEach(function (k) { topicSel[k] = true; });
   startTopicsPractice(keys);
