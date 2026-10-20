@@ -57,11 +57,15 @@
     -webkit-font-smoothing: antialiased;
     line-height: 1.45;
   }
-  .wrap { max-width: 680px; margin: 0 auto; padding: 20px 16px 48px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; }
+  /* Quiz and results keep the original reading width; only the start
+     dashboard uses the full width. */
+  #quizScreen, .results { max-width: 680px; margin-left: auto; margin-right: auto; }
 
   /* ---------- HUD ---------- */
   .hud {
     display: none;
+    position: relative;
     align-items: stretch;
     gap: 8px;
     margin-bottom: 14px;
@@ -92,6 +96,26 @@
     white-space: nowrap;
   }
   .hud button:active { background: var(--surface-2); }
+  /* "✓ Saved" flash: overlays the HUD's bottom-left corner, so it never
+     takes part in layout and nothing shifts when it appears. */
+  .saved-flash {
+    position: absolute;
+    left: 10px;
+    bottom: -11px;
+    background: var(--surface);
+    border: 1px solid var(--good-line);
+    color: var(--good);
+    border-radius: 99px;
+    padding: 1px 9px;
+    font-size: .75rem;
+    font-weight: 700;
+    line-height: 1.5;
+    opacity: 0;
+    transition: opacity .3s ease;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .saved-flash.on { opacity: 1; }
 
   .progress-track {
     display: none;
@@ -134,6 +158,7 @@
     color: var(--ink-soft);
     font-size: 1.02rem;
     margin: 0 0 28px;
+    max-width: 620px;
   }
   .pick {
     display: block;
@@ -153,74 +178,178 @@
   .pick .pick-title { font-size: 1.15rem; font-weight: 700; display: block; }
   .pick .pick-meta { color: var(--ink-soft); font-size: .92rem; display: block; margin-top: 2px; }
 
-  /* ---------- Your Stats ---------- */
-  .stats-sec { margin-bottom: 30px; }
-  .stats-sec h2 { font-size: 1.3rem; margin: 0 0 10px; }
-  .stats-card {
+  /* ---------- Dashboard layout ---------- */
+  .dash {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+  }
+  .dash-side { position: sticky; top: 20px; }
+  @media (max-width: 880px) {
+    .dash { grid-template-columns: 1fr; gap: 16px; }
+    .dash-side { position: static; }
+  }
+
+  /* ---------- Your Stats sidebar ---------- */
+  .side-card {
     background: var(--surface);
     border: 1.5px solid var(--line);
-    border-radius: 14px;
-    padding: 13px 16px;
-    margin-bottom: 8px;
+    border-radius: 16px;
+    padding: 20px;
     box-shadow: var(--shadow);
   }
-  .stats-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 12px;
-  }
-  .stats-name { font-weight: 700; line-height: 1.3; }
-  .stats-acc {
+  .side-card h2 { font-size: 1.25rem; margin: 0 0 14px; }
+  .side-big { display: flex; align-items: baseline; gap: 10px; }
+  .side-big-num {
+    font-size: 2.3rem;
     font-weight: 800;
-    font-size: 1.15rem;
+    line-height: 1;
     color: var(--accent);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
   }
-  .stats-acc.none { color: var(--ink-soft); font-weight: 600; font-size: .92rem; }
-  .stats-line { color: var(--ink-soft); font-size: .92rem; margin-top: 3px; }
-  .stats-line b { color: var(--ink); font-weight: 650; }
-
-  /* ---------- Practice by Topic ---------- */
-  .topic-sec { margin-top: 30px; }
-  .topic-sec h2 { font-size: 1.3rem; margin: 0 0 4px; }
-  .topic-sec .topic-sub { color: var(--ink-soft); font-size: .95rem; margin: 0 0 6px; }
-  .topic-mod {
-    font-size: .8rem;
+  .side-big-lbl { color: var(--ink-soft); font-size: .92rem; font-weight: 600; }
+  .side-line { color: var(--ink-soft); font-size: .95rem; margin-top: 9px; }
+  .side-line b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .side-weak-h {
+    font-size: .78rem;
     font-weight: 700;
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--accent);
-    margin: 18px 0 8px;
+    color: var(--ink-soft);
+    margin: 22px 0 8px;
   }
-  .topic-row {
-    display: flex;
-    align-items: center;
+  .weak-row {
+    display: block;
     width: 100%;
     text-align: left;
-    background: var(--surface);
-    border: 1.5px solid var(--line);
-    border-radius: 14px;
-    padding: 13px 16px;
+    background: var(--surface-2);
+    border: 1.5px solid transparent;
+    border-radius: 12px;
+    padding: 11px 13px;
     margin-bottom: 8px;
     font: inherit;
     color: var(--ink);
     cursor: pointer;
-    box-shadow: var(--shadow);
     -webkit-tap-highlight-color: transparent;
   }
-  .topic-row .box {
+  .weak-row:active { border-color: var(--accent); background: var(--accent-soft); }
+  .weak-name { display: block; font-weight: 650; line-height: 1.3; }
+  .weak-meta {
+    display: block;
+    color: var(--ink-soft);
+    font-size: .86rem;
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .side-none { color: var(--ink-soft); font-size: .92rem; margin: 0; }
+  .side-card .save-note { color: var(--ink-soft); font-size: .88rem; margin: 16px 0 0; }
+
+  /* ---------- Module cards ---------- */
+  .mod-card {
+    background: var(--surface);
+    border: 1.5px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .mod-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px 18px 12px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mod-info { flex: 1; min-width: 0; }
+  .mod-name { display: block; font-size: 1.12rem; font-weight: 700; line-height: 1.3; }
+  .mod-sub {
+    display: block;
+    color: var(--ink-soft);
+    font-size: .9rem;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .accbar {
+    height: 6px;
+    background: var(--surface-2);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .accbar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: width .3s ease;
+  }
+  .mod-acc {
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1.25;
+  }
+  .mod-acc.none { color: var(--ink-soft); font-weight: 600; font-size: .9rem; padding-top: 3px; }
+  .chev-btn {
     flex: none;
+    width: 40px;
+    height: 40px;
+    margin: -6px -8px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-radius: 10px;
+  }
+  .chev-btn svg { transition: transform .2s ease; }
+  .chev-btn.open svg { transform: rotate(180deg); }
+  .chev-btn:active { background: var(--surface-2); }
+  .quick-btn {
+    display: block;
+    width: calc(100% - 36px);
+    margin: 2px 18px 16px;
+    background: none;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    border-radius: 12px;
+    padding: 13px;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 50px;
+  }
+  .quick-btn:active { background: var(--accent-soft); }
+  .mod-panel { border-top: 1px solid var(--line); padding: 6px 10px 14px; }
+  .mod-panel[hidden] { display: none; }
+  .trow { display: flex; align-items: stretch; border-radius: 12px; }
+  .trow + .trow { margin-top: 2px; }
+  .trow.selected { background: var(--accent-soft); }
+  .tcheck {
+    flex: none;
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    padding: 10px 2px 10px 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tcheck .box {
     position: relative;
     width: 26px;
     height: 26px;
     border: 2.5px solid var(--ink-soft);
     border-radius: 7px;
-    margin-right: 12px;
     background: var(--surface);
   }
-  .topic-row .box::after {
+  .tcheck .box::after {
     position: absolute;
     inset: 0;
     display: flex;
@@ -230,11 +359,25 @@
     font-weight: 800;
     line-height: 1;
   }
-  .topic-row.selected { border-color: var(--accent); background: var(--accent-soft); }
-  .topic-row.selected .box { background: var(--accent); border-color: var(--accent); }
-  .topic-row.selected .box::after { content: "✓"; color: var(--accent-ink); }
-  .topic-row .t-name { font-weight: 650; display: block; line-height: 1.3; }
-  .topic-row .t-meta {
+  .trow.selected .tcheck .box { background: var(--accent); border-color: var(--accent); }
+  .trow.selected .tcheck .box::after { content: "✓"; color: var(--accent-ink); }
+  .tmain {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 10px 10px 10px;
+    font: inherit;
+    color: var(--ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tmain:active { background: var(--surface-2); }
+  .trow.selected .tmain:active { background: transparent; }
+  .tmain .t-name { font-weight: 650; display: block; line-height: 1.3; }
+  .tmain .t-meta {
     color: var(--ink-soft);
     font-size: .88rem;
     display: block;
@@ -243,25 +386,25 @@
   }
   .topic-go {
     display: block;
-    width: 100%;
-    margin-top: 14px;
+    width: calc(100% - 16px);
+    margin: 12px 8px 0;
     background: var(--accent);
     color: var(--accent-ink);
     border: none;
     border-radius: 12px;
-    padding: 16px;
+    padding: 15px;
     font: inherit;
-    font-size: 1.05rem;
+    font-size: 1.02rem;
     font-weight: 700;
     cursor: pointer;
-    min-height: 56px;
+    min-height: 54px;
   }
   .topic-go:disabled { opacity: .45; cursor: default; }
   .topic-go:active:not(:disabled) { filter: brightness(1.12); }
   .topic-weak {
     display: block;
     width: 100%;
-    margin-top: 10px;
+    margin-top: 14px;
     background: none;
     border: 1.5px solid var(--accent);
     color: var(--accent);
@@ -664,7 +807,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .progress-fill, .opt { transition: none; }
+    .progress-fill, .opt, .saved-flash, .accbar-fill, .chev-btn svg { transition: none; }
     .opt:active { transform: none; }
   }
 </style>
@@ -692,6 +835,7 @@
         <button type="button" id="restartBtn">New round</button>
         <button type="button" id="endBtn">End session</button>
       </div>
+      <span class="saved-flash" id="savedFlash" aria-hidden="true">✓ Saved</span>
     </div>
     <div class="progress-track on"><div class="progress-fill" id="progressFill"></div></div>
     <div class="hud-scope" id="hudScope"></div>
@@ -780,7 +924,7 @@ var sessionResults = {}; // drill modes: question id -> {item, topic, correct, y
 var sessionOrder = [];   // drill modes: question ids in first-attempt order
 var topicCounted = {};   // question ids already counted toward topic stats this session (first attempt only)
 var topicSel = {};       // start screen: "M{module}|{topic}" -> true for topics picked for practice
-var topicGoEl = null;    // the "Practice selected topics" button, rebuilt with the start screen
+var expandedMods = {};   // start screen: module number -> topics panel open (kept across start-screen rebuilds)
 var topicScopeLabel = ''; // topic mode: "Topic practice: …" text shown in the HUD scope bar
 var currentScope = null; // drill modes: module numbers in scope, or null = all modules
 var summaryScope = null; // scope captured when the summary was opened
@@ -915,30 +1059,48 @@ EXAM_SECTIONS.forEach(function (s) {
 function buildPicks() {
   var picks = $('picks');
   picks.innerHTML = '';
-  buildStatsSection(picks);
-  var choices = [];
+
+  var dash = document.createElement('div');
+  dash.className = 'dash';
+
+  var side = document.createElement('aside');
+  side.className = 'dash-side';
+  buildStatsSidebar(side);
+  dash.appendChild(side);
+
+  var main = document.createElement('div');
+  main.className = 'dash-main';
+
   var total = 0;
-  BANK.modules.forEach(function (mod) {
-    total += mod.questions.length;
-    choices.push({ label: mod.name, meta: 'Quick Check · 25 questions', mods: [mod] });
-  });
-  choices.push({ label: 'All modules', meta: total + ' questions, mixed', mods: BANK.modules });
+  BANK.modules.forEach(function (mod) { total += mod.questions.length; });
+
+  // "All modules" stays a single wide button above the module cards.
+  main.appendChild(makePick({
+    label: 'All modules',
+    meta: total + ' questions, mixed',
+    run: function () { startQuiz(BANK.modules); }
+  }));
+
+  topicGroups().forEach(function (g) { main.appendChild(buildModuleCard(g)); });
+
   var saved = Object.keys(MISTAKES).filter(function (id) { return !!BY_ID[id]; }).length;
-  choices.push({
+  main.appendChild(makePick({
     label: 'Smart Review',
     meta: saved ? saved + ' saved ' + (saved === 1 ? 'mistake' : 'mistakes') + ' — worst first' : 'No mistakes saved yet',
-    action: 'smart'
-  });
-  choices.forEach(addPick);
-  buildTopicSection(picks);
-  // Final Exam stays last, below Practice by Topic.
-  addPick({
+    run: startSmartReview
+  }));
+  // Final Exam stays last, below the modules and Smart Review.
+  main.appendChild(makePick({
     label: 'Final Exam',
     meta: EXAM_ORDER.length + ' questions · true/false, multiple choice, fill-in-the-blank · one pass',
-    action: 'exam'
-  });
+    run: startExam
+  }));
 
-  function addPick(c) {
+  dash.appendChild(main);
+  picks.appendChild(dash);
+  updateTopicGo();
+
+  function makePick(c) {
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'pick';
@@ -952,11 +1114,9 @@ function buildPicks() {
     b.addEventListener('click', function () {
       hideStartMsg();
       disarmReset();
-      if (c.action === 'smart') startSmartReview();
-      else if (c.action === 'exam') startExam();
-      else startQuiz(c.mods);
+      c.run();
     });
-    picks.appendChild(b);
+    return b;
   }
 }
 
@@ -1316,6 +1476,21 @@ function recordResult(isRight) {
   recordMistake(current.q.id, isRight);
   lastQ = current.q;
   updateHud();
+  flashSaved();
+}
+
+/* Brief "✓ Saved" flash in the HUD, fired after the per-answer localStorage
+   writes above (topic stats + mistake pool) so the confirmation is honest. */
+var savedFlashTimer = null;
+function flashSaved() {
+  var el = $('savedFlash');
+  if (!el) return;
+  el.className = 'saved-flash on';
+  if (savedFlashTimer) clearTimeout(savedFlashTimer);
+  savedFlashTimer = setTimeout(function () {
+    el.className = 'saved-flash';
+    savedFlashTimer = null;
+  }, 1400);
 }
 
 /* feedback panel: verdict + optional extra nodes + explanation, then Next */
@@ -1877,79 +2052,122 @@ function startTopicPractice(topic, scope) {
   nextQuestion();
 }
 
-/* ---------- Your Stats (start screen) ---------- */
-/* One compact card per module, computed from TOPIC_STATS over every topic
-   in the bank. Rebuilt with the start screen, so the numbers are fresh. */
-function buildStatsSection(container) {
-  var sec = document.createElement('div');
-  sec.className = 'stats-sec';
-  var h = document.createElement('h2');
-  h.textContent = 'Your Stats';
-  sec.appendChild(h);
-
-  topicGroups().forEach(function (g) {
-    var totCorrect = 0, totAttempted = 0, triedCount = 0, weak = [];
-    g.topics.forEach(function (t) {
-      var s = TOPIC_STATS['M' + g.module + '|' + t.topic];
-      if (s && s.attempted > 0) {
-        triedCount++;
-        totCorrect += s.correct;
-        totAttempted += s.attempted;
-        if (s.attempted >= 3) {
-          weak.push({ topic: t.topic, pct: s.correct / s.attempted, attempted: s.attempted });
-        }
-      }
-    });
-    // Lowest accuracy first; ties go to the topic with more attempts.
-    weak.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
-
-    var card = document.createElement('div');
-    card.className = 'stats-card';
-
-    var head = document.createElement('div');
-    head.className = 'stats-head';
-    var nm = document.createElement('span');
-    nm.className = 'stats-name';
-    nm.textContent = g.name;
-    var acc = document.createElement('span');
-    if (totAttempted > 0) {
-      acc.className = 'stats-acc';
-      acc.textContent = Math.round((totCorrect / totAttempted) * 100) + '%';
-    } else {
-      acc.className = 'stats-acc none';
-      acc.textContent = 'Not tried yet';
+/* ---------- Your Stats sidebar (start screen) ---------- */
+/* Per-module totals from TOPIC_STATS, shared by the sidebar and the cards. */
+function moduleTotals(g) {
+  var totCorrect = 0, totAttempted = 0, triedCount = 0;
+  g.topics.forEach(function (t) {
+    var s = TOPIC_STATS['M' + g.module + '|' + t.topic];
+    if (s && s.attempted > 0) {
+      triedCount++;
+      totCorrect += s.correct;
+      totAttempted += s.attempted;
     }
-    head.appendChild(nm);
-    head.appendChild(acc);
-    card.appendChild(head);
-
-    var l1 = document.createElement('div');
-    l1.className = 'stats-line';
-    l1.textContent = 'Topics attempted: ' + triedCount + ' of ' + g.topics.length +
-      ' · Not tried yet: ' + (g.topics.length - triedCount);
-    card.appendChild(l1);
-
-    var l2 = document.createElement('div');
-    l2.className = 'stats-line';
-    if (weak.length) {
-      l2.appendChild(document.createTextNode('Weakest: '));
-      var wb = document.createElement('b');
-      wb.textContent = weak.slice(0, 2).map(function (w) {
-        return w.topic + ' (' + Math.round(w.pct * 100) + '%)';
-      }).join(', ');
-      l2.appendChild(wb);
-    } else {
-      l2.textContent = 'Weakest: —';
-    }
-    card.appendChild(l2);
-
-    sec.appendChild(card);
   });
-
-  container.appendChild(sec);
+  return { correct: totCorrect, attempted: totAttempted, tried: triedCount, total: g.topics.length };
 }
 
-/* ---------- Practice by Topic (start screen) ---------- */
+/* Overall accuracy, total answered, and the 3 weakest topics across ALL
+   modules — each weakest row starts a drill on that topic immediately. */
+function buildStatsSidebar(side) {
+  var card = document.createElement('div');
+  card.className = 'side-card';
+  var h = document.createElement('h2');
+  h.textContent = 'Your Stats';
+  card.appendChild(h);
+
+  var totCorrect = 0, totAttempted = 0;
+  topicGroups().forEach(function (g) {
+    var mt = moduleTotals(g);
+    totCorrect += mt.correct;
+    totAttempted += mt.attempted;
+  });
+
+  var big = document.createElement('div');
+  big.className = 'side-big';
+  var bigNum = document.createElement('span');
+  bigNum.className = 'side-big-num';
+  bigNum.textContent = totAttempted > 0 ? Math.round(totCorrect / totAttempted * 100) + '%' : '—';
+  var bigLbl = document.createElement('span');
+  bigLbl.className = 'side-big-lbl';
+  bigLbl.textContent = 'overall accuracy';
+  big.appendChild(bigNum);
+  big.appendChild(bigLbl);
+  card.appendChild(big);
+
+  var ans = document.createElement('div');
+  ans.className = 'side-line';
+  var ansB = document.createElement('b');
+  ansB.textContent = totAttempted;
+  ans.appendChild(ansB);
+  ans.appendChild(document.createTextNode(' questions answered'));
+  card.appendChild(ans);
+
+  var wh = document.createElement('div');
+  wh.className = 'side-weak-h';
+  wh.textContent = 'Weakest topics';
+  card.appendChild(wh);
+
+  // Same bar as elsewhere: a topic counts once it has at least 3 answers.
+  // Lowest accuracy first; ties go to the topic with more attempts.
+  var cands = [];
+  Object.keys(TOPIC_STATS).forEach(function (key) {
+    var s = TOPIC_STATS[key];
+    if (s && s.attempted >= 3) {
+      var bar = key.indexOf('|');
+      cands.push({
+        module: parseInt(key.slice(1, bar), 10),
+        topic: key.slice(bar + 1),
+        pct: s.correct / s.attempted,
+        attempted: s.attempted
+      });
+    }
+  });
+  cands.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
+
+  if (cands.length) {
+    cands.slice(0, 3).forEach(function (w) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'weak-row';
+      var nm = document.createElement('span');
+      nm.className = 'weak-name';
+      nm.textContent = w.topic;
+      var meta = document.createElement('span');
+      meta.className = 'weak-meta';
+      meta.textContent = 'Module ' + w.module + ' · ' + Math.round(w.pct * 100) + '% — tap to drill it';
+      row.appendChild(nm);
+      row.appendChild(meta);
+      row.addEventListener('click', function () {
+        hideStartMsg();
+        disarmReset();
+        startTopicPractice(w.topic, [w.module]);
+      });
+      card.appendChild(row);
+    });
+  } else {
+    var none = document.createElement('p');
+    none.className = 'side-none';
+    none.textContent = 'Answer a few questions in any module and your weakest topics will land here, ready to drill.';
+    card.appendChild(none);
+  }
+
+  var weakBtn = document.createElement('button');
+  weakBtn.type = 'button';
+  weakBtn.className = 'topic-weak';
+  weakBtn.textContent = 'Practice my weakest';
+  weakBtn.addEventListener('click', startWeakestPractice);
+  card.appendChild(weakBtn);
+
+  var saveNote = document.createElement('p');
+  saveNote.className = 'save-note';
+  saveNote.textContent = 'Progress saves automatically in this browser after every question.';
+  card.appendChild(saveNote);
+
+  side.appendChild(card);
+}
+
+/* ---------- Topic grouping (module cards + topic practice) ---------- */
 /* Topics grouped by module, exact string match, alphabetical within a module. */
 function topicGroups() {
   var groups = [];
@@ -1968,34 +2186,81 @@ function selectedTopicKeys() {
   return Object.keys(topicSel).filter(function (k) { return topicSel[k]; });
 }
 
+/* Every expanded module panel carries one of these buttons; they all show
+   the live GLOBAL selection count, since topics combine across modules. */
 function updateTopicGo() {
-  if (!topicGoEl) return;
   var n = selectedTopicKeys().length;
-  topicGoEl.disabled = n === 0;
-  topicGoEl.textContent = n === 0 ? 'Select topics to practice'
-    : n === 1 ? 'Practice 1 selected topic'
-    : 'Practice ' + n + ' selected topics';
+  var btns = document.querySelectorAll('.topic-go');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].disabled = n === 0;
+    btns[i].textContent = n === 0 ? 'Select topics to practice'
+      : n === 1 ? 'Practice 1 selected topic'
+      : 'Practice ' + n + ' selected topics';
+  }
 }
 
-function buildTopicSection(container) {
-  var sec = document.createElement('div');
-  sec.className = 'topic-sec';
-  var h = document.createElement('h2');
-  h.textContent = 'Practice by Topic';
-  sec.appendChild(h);
-  var sub = document.createElement('p');
-  sub.className = 'topic-sub';
-  sub.textContent = 'Tap topics to tick them — pick one or combine several — then drill just those questions.';
-  sec.appendChild(sub);
+/* One card per module: header with accuracy + slim bar + topics attempted,
+   a Quick Check button, and a chevron that expands the topic list. */
+function buildModuleCard(g) {
+  var mt = moduleTotals(g);
+  var card = document.createElement('div');
+  card.className = 'mod-card';
 
-  topicGroups().forEach(function (g) {
-    var mh = document.createElement('div');
-    mh.className = 'topic-mod';
-    mh.textContent = g.name;
-    sec.appendChild(mh);
-    g.topics.forEach(function (t) { sec.appendChild(topicRow(g, t)); });
+  var head = document.createElement('div');
+  head.className = 'mod-head';
+  var info = document.createElement('div');
+  info.className = 'mod-info';
+  var nm = document.createElement('span');
+  nm.className = 'mod-name';
+  nm.textContent = g.name;
+  info.appendChild(nm);
+  var sub = document.createElement('span');
+  sub.className = 'mod-sub';
+  sub.textContent = 'Topics attempted ' + mt.tried + ' of ' + mt.total;
+  info.appendChild(sub);
+  var bar = document.createElement('div');
+  bar.className = 'accbar';
+  var fill = document.createElement('div');
+  fill.className = 'accbar-fill';
+  fill.style.width = (mt.attempted > 0 ? Math.round(mt.correct / mt.attempted * 100) : 0) + '%';
+  bar.appendChild(fill);
+  info.appendChild(bar);
+  head.appendChild(info);
+
+  var acc = document.createElement('span');
+  if (mt.attempted > 0) {
+    acc.className = 'mod-acc';
+    acc.textContent = Math.round(mt.correct / mt.attempted * 100) + '%';
+  } else {
+    acc.className = 'mod-acc none';
+    acc.textContent = 'Not tried yet';
+  }
+  head.appendChild(acc);
+
+  var chev = document.createElement('button');
+  chev.type = 'button';
+  chev.className = 'chev-btn';
+  chev.setAttribute('aria-label', 'Show topics for ' + g.name);
+  chev.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  head.appendChild(chev);
+  card.appendChild(head);
+
+  var quick = document.createElement('button');
+  quick.type = 'button';
+  quick.className = 'quick-btn';
+  quick.textContent = 'Quick Check · 25 questions';
+  quick.addEventListener('click', function () {
+    hideStartMsg();
+    disarmReset();
+    var mod = null;
+    BANK.modules.forEach(function (m) { if (m.module === g.module) mod = m; });
+    if (mod) startQuiz([mod]);
   });
+  card.appendChild(quick);
 
+  var panel = document.createElement('div');
+  panel.className = 'mod-panel';
+  g.topics.forEach(function (t) { panel.appendChild(topicRow(g, t)); });
   var go = document.createElement('button');
   go.type = 'button';
   go.className = 'topic-go';
@@ -2003,34 +2268,60 @@ function buildTopicSection(container) {
     var keys = selectedTopicKeys();
     if (keys.length) startTopicsPractice(keys);
   });
-  sec.appendChild(go);
-  topicGoEl = go;
-  updateTopicGo();
+  panel.appendChild(go);
+  card.appendChild(panel);
 
-  var weak = document.createElement('button');
-  weak.type = 'button';
-  weak.className = 'topic-weak';
-  weak.textContent = 'Practice my weakest';
-  weak.addEventListener('click', startWeakestPractice);
-  sec.appendChild(weak);
+  function setOpen(open) {
+    expandedMods[g.module] = open;
+    panel.hidden = !open;
+    chev.classList.toggle('open', open);
+    chev.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  setOpen(!!expandedMods[g.module]);
+  chev.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setOpen(panel.hidden);
+  });
+  // Tapping anywhere else on the header toggles the panel too.
+  head.addEventListener('click', function () { setOpen(panel.hidden); });
 
-  container.appendChild(sec);
+  return card;
 }
 
+/* Topic row inside a module panel. The checkbox toggles the topic in the
+   global multi-module selection; tapping the rest of the row starts a
+   single-topic drill on that topic right away. */
 function topicRow(g, t) {
   var key = 'M' + g.module + '|' + t.topic;
-  var b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'topic-row' + (topicSel[key] ? ' selected' : '');
-  b.setAttribute('aria-pressed', topicSel[key] ? 'true' : 'false');
+  var row = document.createElement('div');
+  row.className = 'trow' + (topicSel[key] ? ' selected' : '');
+
+  var check = document.createElement('button');
+  check.type = 'button';
+  check.className = 'tcheck';
+  check.setAttribute('aria-pressed', topicSel[key] ? 'true' : 'false');
+  check.setAttribute('aria-label', 'Select ' + t.topic + ' for combined practice');
   var box = document.createElement('span');
   box.className = 'box';
-  b.appendChild(box);
-  var wrap = document.createElement('span');
+  check.appendChild(box);
+  check.addEventListener('click', function () {
+    hideStartMsg();
+    disarmReset();
+    if (topicSel[key]) delete topicSel[key];
+    else topicSel[key] = true;
+    row.classList.toggle('selected', !!topicSel[key]);
+    check.setAttribute('aria-pressed', topicSel[key] ? 'true' : 'false');
+    updateTopicGo();
+  });
+  row.appendChild(check);
+
+  var main = document.createElement('button');
+  main.type = 'button';
+  main.className = 'tmain';
   var nm = document.createElement('span');
   nm.className = 't-name';
   nm.textContent = t.topic;
-  wrap.appendChild(nm);
+  main.appendChild(nm);
   var meta = document.createElement('span');
   meta.className = 't-meta';
   var s = TOPIC_STATS[key];
@@ -2040,18 +2331,14 @@ function topicRow(g, t) {
   } else {
     meta.textContent = t.count + ' questions · not tried yet';
   }
-  wrap.appendChild(meta);
-  b.appendChild(wrap);
-  b.addEventListener('click', function () {
+  main.appendChild(meta);
+  main.addEventListener('click', function () {
     hideStartMsg();
     disarmReset();
-    if (topicSel[key]) delete topicSel[key];
-    else topicSel[key] = true;
-    b.classList.toggle('selected', !!topicSel[key]);
-    b.setAttribute('aria-pressed', topicSel[key] ? 'true' : 'false');
-    updateTopicGo();
+    startTopicPractice(t.topic, [g.module]);
   });
-  return b;
+  row.appendChild(main);
+  return row;
 }
 
 /* Endless drill drawn only from the given "M{module}|{topic}" keys. */
