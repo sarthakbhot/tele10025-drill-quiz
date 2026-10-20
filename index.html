@@ -298,13 +298,39 @@
     font-weight: 800;
     font-variant-numeric: tabular-nums;
   }
-  .weak-mod-h {
-    font-size: .88rem;
-    font-weight: 750;
+  /* Weak topics are grouped under one collapsible dropdown per module so
+     the sidebar stays compact; the body holds the tappable topic rows. */
+  .weak-drop { margin-bottom: 8px; }
+  .weak-drop-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: var(--surface-2);
+    border: 1.5px solid transparent;
+    border-radius: 12px;
+    padding: 11px 13px;
+    font: inherit;
     color: var(--ink);
-    margin: 15px 0 7px;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .weak-clear { color: var(--ink-soft); font-size: .88rem; margin: 0 0 8px; }
+  .weak-drop-head:active { border-color: var(--accent); background: var(--accent-soft); }
+  .weak-drop-name { flex: 1; min-width: 0; font-weight: 750; font-size: .95rem; }
+  .weak-drop-count {
+    flex: none;
+    color: var(--ink-soft);
+    font-size: .85rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .weak-drop-chev { flex: none; display: flex; color: var(--ink-soft); }
+  .weak-drop-chev svg { transition: transform .2s ease; }
+  .weak-drop-head.open .weak-drop-chev svg { transform: rotate(180deg); }
+  .weak-drop-body { padding-top: 8px; }
+  .weak-drop-body[hidden] { display: none; }
+  .weak-drop-body .weak-row:last-child { margin-bottom: 0; }
   .side-none { color: var(--ink-soft); font-size: .92rem; margin: 0; line-height: 1.5; }
   .side-card .save-note { color: var(--ink-soft); font-size: .88rem; margin: 16px 0 0; line-height: 1.5; }
 
@@ -928,7 +954,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .progress-fill, .opt, .saved-flash, .accbar-fill, .chev-btn svg, .ring-fg,
+    .progress-fill, .opt, .saved-flash, .accbar-fill, .chev-btn svg, .weak-drop-chev svg, .ring-fg,
     .pick, .weak-row, .quick-btn, .topic-go, .topic-weak, .tcheck .box { transition: none; }
     .opt:active, .pick:active, .weak-row:active, .quick-btn:active,
     .topic-go:active:not(:disabled), .topic-weak:active { transform: none; }
@@ -1048,6 +1074,7 @@ var sessionOrder = [];   // drill modes: question ids in first-attempt order
 var topicCounted = {};   // question ids already counted toward topic stats this session (first attempt only)
 var topicSel = {};       // start screen: "M{module}|{topic}" -> true for topics picked for practice
 var expandedMods = {};   // start screen: module number -> topics panel open (kept across start-screen rebuilds)
+var weakDropOpen = {};   // start screen: module number -> sidebar weak-topics dropdown open (start collapsed)
 var topicScopeLabel = ''; // topic mode: "Topic practice: …" text shown in the HUD scope bar
 var currentScope = null; // drill modes: module numbers in scope, or null = all modules
 var summaryScope = null; // scope captured when the summary was opened
@@ -2272,8 +2299,8 @@ function moduleTotals(g) {
 }
 
 /* Overall accuracy, total answered, and EVERY weak topic across ALL
-   modules (accuracy under 70% with at least 3 attempts), grouped under
-   its module heading — each row starts a drill on that topic immediately. */
+   modules (accuracy under 70% with at least 3 attempts), grouped under a
+   collapsible dropdown per module — each row starts a drill on that topic. */
 function buildStatsSidebar(side) {
   var card = document.createElement('div');
   card.className = 'side-card';
@@ -2333,22 +2360,37 @@ function buildStatsSidebar(side) {
   Object.keys(byModule).forEach(function (m) {
     byModule[m].sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
   });
-  var weakMods = BANK.modules.filter(function (mod) { return byModule[mod.module]; });
+  var anyWeak = BANK.modules.some(function (mod) {
+    return byModule[mod.module] && byModule[mod.module].length;
+  });
 
-  if (weakMods.length) {
+  if (anyWeak) {
+    // One dropdown per module that has weak topics; modules with none are
+    // omitted so the sidebar stays short. Dropdowns start collapsed, and
+    // the topic rows inside still start a single-topic drill on tap.
     BANK.modules.forEach(function (modInfo) {
-      var mh = document.createElement('div');
-      mh.className = 'weak-mod-h';
-      mh.textContent = 'Module ' + modInfo.module;
-      card.appendChild(mh);
       var list = byModule[modInfo.module];
-      if (!list || !list.length) {
-        var clear = document.createElement('p');
-        clear.className = 'weak-clear';
-        clear.textContent = 'No weak topics';
-        card.appendChild(clear);
-        return;
-      }
+      if (!list || !list.length) return;
+      var drop = document.createElement('div');
+      drop.className = 'weak-drop';
+      var headBtn = document.createElement('button');
+      headBtn.type = 'button';
+      headBtn.className = 'weak-drop-head';
+      var dName = document.createElement('span');
+      dName.className = 'weak-drop-name';
+      dName.textContent = 'Module ' + modInfo.module;
+      headBtn.appendChild(dName);
+      var dCount = document.createElement('span');
+      dCount.className = 'weak-drop-count';
+      dCount.textContent = list.length + (list.length === 1 ? ' weak topic' : ' weak topics');
+      headBtn.appendChild(dCount);
+      var dChev = document.createElement('span');
+      dChev.className = 'weak-drop-chev';
+      dChev.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+      headBtn.appendChild(dChev);
+      drop.appendChild(headBtn);
+      var body = document.createElement('div');
+      body.className = 'weak-drop-body';
       list.forEach(function (w) {
         var pct = Math.round(w.pct * 100);
         var row = document.createElement('button');
@@ -2374,8 +2416,18 @@ function buildStatsSidebar(side) {
           disarmReset();
           startTopicPractice(w.topic, [w.module]);
         });
-        card.appendChild(row);
+        body.appendChild(row);
       });
+      drop.appendChild(body);
+      function setOpen(open) {
+        weakDropOpen[modInfo.module] = open;
+        body.hidden = !open;
+        headBtn.classList.toggle('open', open);
+        headBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      setOpen(!!weakDropOpen[modInfo.module]);
+      headBtn.addEventListener('click', function () { setOpen(body.hidden); });
+      card.appendChild(drop);
     });
   } else {
     var none = document.createElement('p');
@@ -2649,32 +2701,20 @@ function startTopicsPractice(keys) {
   nextQuestion();
 }
 
-/* One weakest topic per module: for each module, its single lowest-accuracy
-   topic with at least 3 attempts. All qualifying modules (up to 5) combine
-   into one drill; starts at once. */
+/* "Practice my weakest": EVERY weak topic across all modules — accuracy
+   under 70% with at least 3 attempts — combined into one drill.
+   startTopicsPractice pools all their questions and newPass shuffles the
+   whole pool, so topics and modules interleave instead of running in
+   module blocks. */
 function startWeakestPractice() {
   hideStartMsg();
   disarmReset();
-  // Group qualifying topics by module number.
-  var byModule = {};
+  var keys = [];
   Object.keys(TOPIC_STATS).forEach(function (key) {
     var s = TOPIC_STATS[key];
-    if (s && s.attempted >= 3) {
-      var bar = key.indexOf('|');
-      var mod = parseInt(key.slice(1, bar), 10);
-      if (!byModule[mod]) byModule[mod] = [];
-      byModule[mod].push({ key: key, pct: s.correct / s.attempted, attempted: s.attempted });
-    }
+    if (s && s.attempted >= 3 && s.correct / s.attempted < 0.7) keys.push(key);
   });
-  // Per module: lowest accuracy wins; ties go to the topic with more attempts.
-  var keys = [];
-  Object.keys(byModule).map(function (k) { return parseInt(k, 10); })
-    .sort(function (a, b) { return a - b; })
-    .forEach(function (mod) {
-      var cands = byModule[mod];
-      cands.sort(function (a, b) { return (a.pct - b.pct) || (b.attempted - a.attempted); });
-      keys.push(cands[0].key);
-    });
+  keys.sort();
   if (!keys.length) {
     showStartMsg('No topic has 3 answers yet — drill a module first, then your weakest topics will show up here.');
     return;
